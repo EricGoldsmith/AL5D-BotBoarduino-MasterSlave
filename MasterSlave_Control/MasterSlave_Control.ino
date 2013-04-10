@@ -39,13 +39,13 @@ int dummy;                  // Defining this dummy variable to work around a bug
 //#define WRIST_ROTATE      // Uncomment if wrist rotate hardware is installed
 
 // Arduino digital pin numbers for servo connections
-#define BAS_SERVO_PIN 2     // Base servo HS-485HB
-#define SHL_SERVO_PIN 3     // Shoulder Servo HS-805BB
-#define ELB_SERVO_PIN 4     // Elbow Servo HS-755HB
-#define WRI_SERVO_PIN 10    // Wrist servo HS-645MG
-#define GRI_SERVO_PIN 11    // Gripper servo HS-422
+#define BAS_SRV_PIN 2     // Base servo HS-485HB
+#define SHL_SRV_PIN 3     // Shoulder Servo HS-805BB
+#define ELB_SRV_PIN 4     // Elbow Servo HS-755HB
+#define WRI_SRV_PIN 10    // Wrist servo HS-645MG
+#define GRI_SRV_PIN 11    // Gripper servo HS-422
 #ifdef WRIST_ROTATE
- #define WRO_SERVO_PIN 12   // Wrist rotate servo HS-485HB
+ #define WRO_SRV_PIN 12   // Wrist rotate servo HS-485HB
 #endif
 
 // Arduino analog pin numbers for potentiometer connections
@@ -61,54 +61,66 @@ int dummy;                  // Defining this dummy variable to work around a bug
 // Arduino pin number of on-board speaker
 #define SPK_PIN 5
 
-// Define range limits for analog input
-#define ANALOG_MIN 0
-#define ANALOG_MAX 1023
+// Pot range limits for +/- 90 degree rotation from midpoints
+// Used to scale pot input to servo position
+#define BAS_POT_MIN 183
+#define BAS_POT_MAX 950
 
-// Define generic range limits for servos, in microseconds (us) and degrees (deg)
-// Used to map range of 180 deg to 1800 us (native servo units).
-// Specific per-servo/joint limits are defined below
-#define SERVO_MIN_US 600
-#define SERVO_MID_US 1500
-#define SERVO_MAX_US 2400
-#define SERVO_MIN_DEG 0.0
-#define SERVO_MID_DEG 90.0
-#define SERVO_MAX_DEG 180.0
+#define SHL_POT_MIN 114
+#define SHL_POT_MAX 935
 
-// Set physical limits (in degrees) per servo/joint.
-// Will vary for each servo/joint, depending on mechanical range of motion.
-// The MID setting is the required servo input needed to achieve a 
-// 90 degree joint angle, to allow compensation for horn misalignment
-#define BAS_MIN 0.0         // Fully CCW
-#define BAS_MID 90.0
-#define BAS_MAX 180.0       // Fully CW
+#define ELB_POT_MIN 67
+#define ELB_POT_MAX 905
 
-#define SHL_MIN 20.0        // Max forward motion
-#define SHL_MID 81.0
-#define SHL_MAX 140.0       // Max rearward motion
+#define WRI_POT_MIN 87
+#define WRI_POT_MAX 932
 
-#define ELB_MIN 20.0        // Max upward motion
-#define ELB_MID 88.0
-#define ELB_MAX 165.0       // Max downward motion
-
-#define WRI_MIN 0.0         // Max downward motion
-#define WRI_MID 93.0
-#define WRI_MAX 180.0       // Max upward motion
-
-#define GRI_MIN 25.0        // Fully open
-#define GRI_MID 90.0
-#define GRI_MAX 165.0       // Fully closed
+#define GRI_POT_MIN 0
+#define GRI_POT_MAX 1023
 
 #ifdef WRIST_ROTATE
- #define WRO_MIN 0.0
- #define WRO_MID 90.0
- #define WRO_MAX 180.0
+ #define WRO_POT_MIN 45
+ #define WRO_POT_MAX 990
 #endif
 
-// Practical navigation limit.
-// Enforced on controller input, and used for CLV calculation 
-// for base rotation in 2D mode. 
-#define Y_MIN 100.0         // mm
+// Define generic range limits for servos, in microseconds (us)
+// Specific per-servo/joint limits are defined below
+#define SERVO_MIN 600
+#define SERVO_MID 1500
+#define SERVO_MAX 2400
+
+// Servo offsets (in microseconds) for centered position
+#define BAS_SRV_OFFSET (0)
+#define SHL_SRV_OFFSET (-50)
+#define ELB_SRV_OFFSET (-20)
+#define WRI_SRV_OFFSET (+30)
+#define GRI_SRV_OFFSET (0)
+#ifdef WRIST_ROTATE
+ #define WRO_SRV_OFFSET (0)
+#endif
+
+// Servo range limits
+// Used to scale pot input to servo position
+#define BAS_SRV_MIN (SERVO_MIN + BAS_SRV_OFFSET)
+#define BAS_SRV_MAX (SERVO_MAX + BAS_SRV_OFFSET)
+
+#define SHL_SRV_MIN (SERVO_MIN + SHL_SRV_OFFSET)
+#define SHL_SRV_MAX (SERVO_MAX + SHL_SRV_OFFSET)
+
+#define ELB_SRV_MIN (SERVO_MIN + ELB_SRV_OFFSET)
+#define ELB_SRV_MAX (SERVO_MAX + ELB_SRV_OFFSET)
+
+#define WRI_SRV_MIN (SERVO_MIN + WRI_SRV_OFFSET)
+#define WRI_SRV_MAX (SERVO_MAX + WRI_SRV_OFFSET)
+
+#define GRI_SRV_MIN (SERVO_MIN + GRI_SRV_OFFSET)
+#define GRI_SRV_MAX (SERVO_MAX + GRI_SRV_OFFSET)
+
+#ifdef WRIST_ROTATE
+ #define WRO_SRV_MIN (SERVO_MIN + WRO_SRV_OFFSET)
+ #define WRO_SRV_MAX (SERVO_MAX + WRO_SRV_OFFSET)
+#endif
+
 
 // Audible feedback sounds
 #define TONE_READY 1000     // Hz
@@ -135,13 +147,15 @@ void setup()
 #endif
 
     // Attach to the servos and specify range limits
-    Bas_Servo.attach(BAS_SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
-    Shl_Servo.attach(SHL_SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
-    Elb_Servo.attach(ELB_SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
-    Wri_Servo.attach(WRI_SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
-    Gri_Servo.attach(GRI_SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
+    // Note that the scaling limits (e.g. BAS_SRV_MIN, etc.) are not used here
+    // The limits here are just the physical limits of the servos, to prevent damage
+    Bas_Servo.attach(BAS_SRV_PIN, SERVO_MIN, SERVO_MAX);
+    Shl_Servo.attach(SHL_SRV_PIN, SERVO_MIN, SERVO_MAX);
+    Elb_Servo.attach(ELB_SRV_PIN, SERVO_MIN, SERVO_MAX);
+    Wri_Servo.attach(WRI_SRV_PIN, SERVO_MIN, SERVO_MAX);
+    Gri_Servo.attach(GRI_SRV_PIN, SERVO_MIN, SERVO_MAX);
 #ifdef WRIST_ROTATE
-    Wro_Servo.attach(WRO_SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
+    Wro_Servo.attach(WRO_SERVO_PIN, SERVO_MIN, SERVO_MAX);
 #endif
 
 #ifdef DEBUG
@@ -171,7 +185,7 @@ void loop()
     shl = analogRead(SHL_POT_PIN);
     elb = analogRead(ELB_POT_PIN);
     wri = analogRead(WRI_POT_PIN);
-    gri = analogRead(gri_POT_PIN);
+    gri = analogRead(GRI_POT_PIN);
 #ifdef WRIST_ROTATE
     wro = analogRead(WRO_POT_PIN);
 #endif
@@ -191,13 +205,13 @@ void loop()
  #endif
 
     // Scale to servo output
-    bas = map(bas, ANALOG_MIN, ANALOG_MAX, SERVO_MIN_US, SERVO_MAX_US);
-    shl = map(shl, ANALOG_MIN, ANALOG_MAX, SERVO_MIN_US, SERVO_MAX_US);
-    elb = map(elb, ANALOG_MIN, ANALOG_MAX, SERVO_MIN_US, SERVO_MAX_US);
-    wri = map(wri, ANALOG_MIN, ANALOG_MAX, SERVO_MIN_US, SERVO_MAX_US);
-    gri = map(gri, ANALOG_MIN, ANALOG_MAX, SERVO_MIN_US, SERVO_MAX_US);
+    bas = map(bas, BAS_POT_MIN, BAS_POT_MAX, BAS_SRV_MIN, BAS_SRV_MAX);
+    shl = map(shl, SHL_POT_MIN, SHL_POT_MAX, SHL_SRV_MIN, SHL_SRV_MAX);
+    elb = map(elb, ELB_POT_MIN, ELB_POT_MAX, ELB_SRV_MIN, ELB_SRV_MAX);
+    wri = map(wri, WRI_POT_MIN, WRI_POT_MAX, WRI_SRV_MIN, WRI_SRV_MAX);
+    gri = map(gri, GRI_POT_MIN, GRI_POT_MAX, GRI_SRV_MIN, GRI_SRV_MAX);
 #ifdef WRIST_ROTATE
-    wro = map(wro, ANALOG_MIN, ANALOG_MAX, SERVO_MIN_US, SERVO_MAX_US);
+    wro = map(wro, WRO_POT_MIN, WRO_POT_MAX, WRO_SRV_MIN, WRO_SRV_MAX);
 #endif
 
 #ifdef DEBUG
@@ -218,13 +232,10 @@ void loop()
     Bas_Servo.writeMicroseconds(bas);
     Shl_Servo.writeMicroseconds(shl);
     Elb_Servo.writeMicroseconds(elb);
-    wri_Servo.writeMicroseconds(wri);
+    Wri_Servo.writeMicroseconds(wri);
     Gri_Servo.writeMicroseconds(gri);
 #ifdef WRIST_ROTATE
     Wro_Servo.writeMicroseconds(wro);
 #endif
 
-    // Give the servos time to move
-    delay(15);
- } // end loop()
- 
+} // end loop()
