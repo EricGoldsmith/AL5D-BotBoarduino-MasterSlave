@@ -28,26 +28,25 @@
 
 #include <Servo.h>
 
-int dummy;                  // Defining this dummy variable to work around a bug in the
-                            // IDE (1.0.3) pre-processor that messes up #ifdefs
-                            // More info: http://code.google.com/p/arduino/issues/detail?id=906
-                            //            http://code.google.com/p/arduino/issues/detail?id=987
-                            //            http://arduino.cc/forum/index.php/topic,125769.0.html
+int dummy;                // Defining this dummy variable to work around a bug in the
+                          // IDE (1.0.3) pre-processor that messes up #ifdefs
+                          // More info: http://code.google.com/p/arduino/issues/detail?id=906
+                          //            http://code.google.com/p/arduino/issues/detail?id=987
+                          //            http://arduino.cc/forum/index.php/topic,125769.0.html
 
 
 //#define DEBUG             // Uncomment to turn on debugging output
-                            
-//#define WRIST_ROTATE      // Uncomment if wrist rotate hardware is installed
 
+#define WRO_SWITCH        // The wrist rotation input is a toggle switch, not a potentiometer
+                          // Requires special handling to prevent servo whiplash
+                            
 // Arduino digital pin numbers for servo connections
 #define BAS_SRV_PIN 2     // Base servo HS-485HB
 #define SHL_SRV_PIN 3     // Shoulder Servo HS-805BB
 #define ELB_SRV_PIN 4     // Elbow Servo HS-755HB
 #define WRI_SRV_PIN 10    // Wrist servo HS-645MG
 #define GRI_SRV_PIN 11    // Gripper servo HS-422
-#ifdef WRIST_ROTATE
- #define WRO_SRV_PIN 12   // Wrist rotate servo HS-485HB
-#endif
+#define WRO_SRV_PIN 12    // Wrist rotate servo HS-225MG
 
 // Arduino analog pin numbers for potentiometer connections
 #define BAS_POT_PIN 0
@@ -55,9 +54,7 @@ int dummy;                  // Defining this dummy variable to work around a bug
 #define ELB_POT_PIN 2
 #define WRI_POT_PIN 3
 #define GRI_POT_PIN 4
-#ifdef WRIST_ROTATE
- #define WRO_POT_PIN 5
-#endif
+#define WRO_POT_PIN 5
 
 // Arduino pin number of on-board speaker
 #define SPK_PIN 5
@@ -79,10 +76,8 @@ int dummy;                  // Defining this dummy variable to work around a bug
 #define GRI_POT_MIN 0
 #define GRI_POT_MAX 1023
 
-#ifdef WRIST_ROTATE
- #define WRO_POT_MIN 45
- #define WRO_POT_MAX 990
-#endif
+#define WRO_POT_MIN 0
+#define WRO_POT_MAX 1023
 
 // Define generic range limits for servos, in microseconds (us)
 // Specific per-servo/joint limits are defined below
@@ -96,9 +91,7 @@ int dummy;                  // Defining this dummy variable to work around a bug
 #define ELB_SRV_OFFSET (-80)
 #define WRI_SRV_OFFSET (+30)
 #define GRI_SRV_OFFSET (0)
-#ifdef WRIST_ROTATE
- #define WRO_SRV_OFFSET (0)
-#endif
+#define WRO_SRV_OFFSET (0)
 
 // Servo range limits
 // Used to scale pot input to servo position
@@ -117,16 +110,14 @@ int dummy;                  // Defining this dummy variable to work around a bug
 #define GRI_SRV_MIN (SERVO_MIN + GRI_SRV_OFFSET)
 #define GRI_SRV_MAX (SERVO_MAX + GRI_SRV_OFFSET)
 
-#ifdef WRIST_ROTATE
- #define WRO_SRV_MIN (SERVO_MIN + WRO_SRV_OFFSET)
- #define WRO_SRV_MAX (SERVO_MAX + WRO_SRV_OFFSET)
-#endif
+#define WRO_SRV_MIN (SERVO_MIN + WRO_SRV_OFFSET)
+#define WRO_SRV_MAX (SERVO_MAX + WRO_SRV_OFFSET)
 
 
 // Audible feedback sounds
-#define TONE_READY 1000     // Hz
-#define TONE_RANGE_ERROR 200   // Hz
-#define TONE_DURATION 100   // ms
+#define TONE_READY 1000       // Hz
+#define TONE_RANGE_ERROR 200  // Hz
+#define TONE_DURATION 100     // ms
  
 // Servo objects 
 Servo   Bas_Servo;
@@ -134,9 +125,7 @@ Servo   Shl_Servo;
 Servo   Elb_Servo;
 Servo   Wri_Servo;
 Servo   Gri_Servo;
-#ifdef WRIST_ROTATE
- Servo   Wro_Servo;
-#endif
+Servo   Wro_Servo;
 
 /*
  * Setup function - runs once when Arduino is powered up or reset
@@ -155,9 +144,7 @@ void setup()
     Elb_Servo.attach(ELB_SRV_PIN, SERVO_MIN, SERVO_MAX);
     Wri_Servo.attach(WRI_SRV_PIN, SERVO_MIN, SERVO_MAX);
     Gri_Servo.attach(GRI_SRV_PIN, SERVO_MIN, SERVO_MAX);
-#ifdef WRIST_ROTATE
-    Wro_Servo.attach(WRO_SERVO_PIN, SERVO_MIN, SERVO_MAX);
-#endif
+    Wro_Servo.attach(WRO_SER_PIN, SERVO_MIN, SERVO_MAX);
 
 #ifdef DEBUG
     Serial.println("Start");
@@ -176,67 +163,91 @@ void setup()
  */
 void loop()
 {
-    int bas, shl, elb, wri, gri;
-#ifdef WRIST_ROTATE
-    int wro;
-#endif
+    int bas_pot, shl_pot, elb_pot, wri_pot, gri_pot, wro_pot;
+    int bas_srv, shl_srv, elb_srv, wri_srv, gri_srv, wro_srv;
 
     // Read potentiometer positions
-    bas = analogRead(BAS_POT_PIN);
-    shl = analogRead(SHL_POT_PIN);
-    elb = analogRead(ELB_POT_PIN);
-    wri = analogRead(WRI_POT_PIN);
-    gri = analogRead(GRI_POT_PIN);
-#ifdef WRIST_ROTATE
-    wro = analogRead(WRO_POT_PIN);
-#endif
+    bas_pot = analogRead(BAS_POT_PIN);
+    shl_pot = analogRead(SHL_POT_PIN);
+    elb_pot = analogRead(ELB_POT_PIN);
+    wri_pot = analogRead(WRI_POT_PIN);
+    gri_pot = analogRead(GRI_POT_PIN);
+    wro_pot = analogRead(WRO_POT_PIN);
 
 #ifdef DEBUG
     Serial.print("Bas Pot: ");
-    Serial.print(bas);
+    Serial.print(bas_pot);
     Serial.print("  Shl Pot: ");
-    Serial.print(shl);
+    Serial.print(shl_pot);
     Serial.print("  Elb Pot: ");
-    Serial.print(elb);
+    Serial.print(elb_pot);
     Serial.print("  Wri Pot: ");
-    Serial.print(wri);
+    Serial.print(wri_pot);
     Serial.print("  Gri Pot: ");
-    Serial.print(gri);
+    Serial.print(gri_pot);
+    Serial.print("  Wro Pot: ");
+    Serial.print(wro_pot);
     Serial.println();
  #endif
 
     // Scale to servo output
-    bas = map(bas, BAS_POT_MIN, BAS_POT_MAX, BAS_SRV_MIN, BAS_SRV_MAX);
-    shl = map(shl, SHL_POT_MIN, SHL_POT_MAX, SHL_SRV_MIN, SHL_SRV_MAX);
-    elb = map(elb, ELB_POT_MIN, ELB_POT_MAX, ELB_SRV_MIN, ELB_SRV_MAX);
-    wri = map(wri, WRI_POT_MIN, WRI_POT_MAX, WRI_SRV_MIN, WRI_SRV_MAX);
-    gri = map(gri, GRI_POT_MIN, GRI_POT_MAX, GRI_SRV_MIN, GRI_SRV_MAX);
-#ifdef WRIST_ROTATE
-    wro = map(wro, WRO_POT_MIN, WRO_POT_MAX, WRO_SRV_MIN, WRO_SRV_MAX);
-#endif
+    bas_srv = map(bas_pot, BAS_POT_MIN, BAS_POT_MAX, BAS_SRV_MIN, BAS_SRV_MAX);
+    shl_srv = map(shl_pot, SHL_POT_MIN, SHL_POT_MAX, SHL_SRV_MIN, SHL_SRV_MAX);
+    elb_srv = map(elb_pot, ELB_POT_MIN, ELB_POT_MAX, ELB_SRV_MIN, ELB_SRV_MAX);
+    wri_srv = map(wri_pot, WRI_POT_MIN, WRI_POT_MAX, WRI_SRV_MIN, WRI_SRV_MAX);
+    gri_srv = map(gri_pot, GRI_POT_MIN, GRI_POT_MAX, GRI_SRV_MIN, GRI_SRV_MAX);
+    wro_srv = map(wro_pot, WRO_POT_MIN, WRO_POT_MAX, WRO_SRV_MIN, WRO_SRV_MAX);
 
 #ifdef DEBUG
     Serial.print("Bas Servo: ");
-    Serial.print(bas);
+    Serial.print(bas_srv);
     Serial.print("  Shl Servo: ");
-    Serial.print(shl);
+    Serial.print(shl_srv);
     Serial.print("  Elb Servo: ");
-    Serial.print(elb);
+    Serial.print(elb_srv);
     Serial.print("  Wri Servo: ");
-    Serial.print(wri);
+    Serial.print(wri_srv);
     Serial.print("  Gri Servo: ");
-    Serial.print(gri);
+    Serial.print(gri_srv);
+    Serial.print("  Wro Servo: ");
+    Serial.print(wro_srv);
     Serial.println();
 #endif
 
     // Write output to servos
-    Bas_Servo.writeMicroseconds(bas);
-    Shl_Servo.writeMicroseconds(shl);
-    Elb_Servo.writeMicroseconds(elb);
-    Wri_Servo.writeMicroseconds(wri);
-    Gri_Servo.writeMicroseconds(gri);
-#ifdef WRIST_ROTATE
-    Wro_Servo.writeMicroseconds(wro);
+    Bas_Servo.writeMicroseconds(bas_srv);
+    Shl_Servo.writeMicroseconds(shl_srv);
+    Elb_Servo.writeMicroseconds(elb_srv);
+    Wri_Servo.writeMicroseconds(wri_srv);
+    Gri_Servo.writeMicroseconds(gri_srv);
+#ifdef WRO_SWITCH
+	// If using a switch to control the wrist rotation, gradually step
+	// from old to new position, to avoid servo whiplash
+	
+	// Max step, in milliseconds (ms), per iteration
+	max_step = 50;
+
+	// Get current position
+	wro_srv_last = Wro_Servo.readMicroseconds();
+	
+	delta = wro_srv - wro_srv_last;
+	
+	while (delta != 0) {
+		// If we need to rotate, determine increment and direction
+		if (abs(delta) >= max_step) {
+			step = delta > 0 ? max_step : -max_step;
+		} else {
+			step = delta;
+		}
+	
+		// Move into position
+		wro_srv_last += step;
+		Wro_Servo.writeMicroseconds(wro_srv_last);
+		
+		delta = wro_srv - wro_srv_last;
+	} 
+#else
+    Wro_Servo.writeMicroseconds(wro_srv);
 #endif
 
 } // end loop()
