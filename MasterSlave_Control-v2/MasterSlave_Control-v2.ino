@@ -130,8 +130,7 @@ Servo   Wro_Servo;
 /*
  * Setup function - runs once when Arduino is powered up or reset
  */
-void setup()
-{
+void setup() {
 #ifdef DEBUG
     Serial.begin(115200);
 #endif
@@ -144,7 +143,7 @@ void setup()
     Elb_Servo.attach(ELB_SRV_PIN, SERVO_MIN, SERVO_MAX);
     Wri_Servo.attach(WRI_SRV_PIN, SERVO_MIN, SERVO_MAX);
     Gri_Servo.attach(GRI_SRV_PIN, SERVO_MIN, SERVO_MAX);
-    Wro_Servo.attach(WRO_SER_PIN, SERVO_MIN, SERVO_MAX);
+    Wro_Servo.attach(WRO_SRV_PIN, SERVO_MIN, SERVO_MAX);
 
 #ifdef DEBUG
     Serial.println("Start");
@@ -161,8 +160,7 @@ void setup()
 /*
  * Loop function - runs forever, after setup() function
  */
-void loop()
-{
+void loop() {
     int bas_pot, shl_pot, elb_pot, wri_pot, gri_pot, wro_pot;
     int bas_srv, shl_srv, elb_srv, wri_srv, gri_srv, wro_srv;
 
@@ -225,12 +223,13 @@ void loop()
 	// from old to new position, to avoid servo whiplash
 	
 	// Max step, in milliseconds (ms), per iteration
-	max_step = 50;
+	int max_step = 50;
 
 	// Get current position
-	wro_srv_last = Wro_Servo.readMicroseconds();
+	int wro_srv_last = Wro_Servo.readMicroseconds();
 	
-	delta = wro_srv - wro_srv_last;
+	int delta = wro_srv - wro_srv_last;
+	int step = 0;
 	
 	while (delta != 0) {
 		// If we need to rotate, determine increment and direction
@@ -240,10 +239,11 @@ void loop()
 			step = delta;
 		}
 	
-		// Move into position
+		// Move a step toward final position
 		wro_srv_last += step;
 		Wro_Servo.writeMicroseconds(wro_srv_last);
 		
+		// Compute remaining delta
 		delta = wro_srv - wro_srv_last;
 	} 
 #else
