@@ -11,6 +11,7 @@
  *   Current Version:
  *       https://github.com/EricGoldsmith/AL5D-BotBoarduino-MasterSlave
  *   Version history
+ *       0.2 Add support for wrist-rotation
  *       0.1 Initial version
  *
  *
